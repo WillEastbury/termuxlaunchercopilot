@@ -1,0 +1,506 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SOURCE_ROOT="/source"
+
+if [[ -t 1 ]]; then
+  c1=$'\033[38;5;39m'   # blue
+  c2=$'\033[38;5;46m'   # green
+  c3=$'\033[38;5;226m'  # yellow
+  c4=$'\033[38;5;196m'  # red
+  c5=$'\033[38;5;51m'   # cyan
+  cg=$'\033[38;5;46m'   # green menu options
+  c0=$'\033[0m'
+else
+  c1=""
+  c2=""
+  c3=""
+  c4=""
+  c5=""
+  cg=""
+  c0=""
+fi
+
+_term_rows=24
+_term_cols=80
+
+_update_term_size() {
+  local size r c
+  if size=$(stty size 2>/dev/null) && [[ -n "$size" ]]; then
+    r=${size%% *}
+    c=${size##* }
+    if [[ "$r" =~ ^[0-9]+$ ]]; then _term_rows=$r; fi
+    if [[ "$c" =~ ^[0-9]+$ ]]; then _term_cols=$c; fi
+  fi
+  if [[ -n "${COLUMNS:-}" ]] && [[ "${COLUMNS}" =~ ^[0-9]+$ ]]; then
+    _term_cols=$COLUMNS
+  fi
+  if [[ -n "${LINES:-}" ]] && [[ "${LINES}" =~ ^[0-9]+$ ]]; then
+    _term_rows=$LINES
+  fi
+  if ((_term_cols < 20)); then _term_cols=80; fi
+  if ((_term_rows < 4)); then _term_rows=24; fi
+}
+
+draw_banner() {
+  local cols iw border line
+  _update_term_size
+  cols=$_term_cols
+  iw=$((cols - 2))
+  border="$(repeat_char "$iw" '═')"
+
+  printf "%s╔%s╗%s\n" "$c1" "$border" "$c0"
+
+  if ((iw >= 54)) && command -v figlet &>/dev/null; then
+    local art_lines=()
+    while IFS= read -r line; do
+      art_lines+=("$line")
+    done < <(figlet -f standard "Swarmy")
+    local tag="SwarmyLauncher // /source"
+
+    local total_lines=$(( ${#art_lines[@]} + 1 ))
+
+    # Find the widest figlet line
+    local max_art_width=0
+    for line in "${art_lines[@]}"; do
+      (( ${#line} > max_art_width )) && max_art_width=${#line}
+    done
+    (( ${#tag} > max_art_width )) && max_art_width=${#tag}
+
+    if [[ -t 1 ]]; then
+      # Print empty placeholder rows inside the box
+      for ((i = 0; i < total_lines; i++)); do
+        printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" "" "$c1" "$c0"
+      done
+      printf "%s╚%s╝%s\n" "$c1" "$border" "$c0"
+      echo
+
+      # Animate slide-in with ▸ chevron from the left
+      printf '\033[?25l'
+      local reveal
+      for ((reveal = 1; reveal <= max_art_width + 1; reveal++)); do
+        # Move cursor back up to the first art row
+        printf '\033[%dA' "$((total_lines + 2))"
+        for ((i = 0; i < ${#art_lines[@]}; i++)); do
+          local art_line="${art_lines[$i]}"
+          local visible="${art_line:0:reveal}"
+          if ((reveal <= ${#art_line})); then
+            visible+="▸"
+          fi
+          printf "\r%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" " $visible" "$c1" "$c0"
+        done
+        local tag_visible="${tag:0:reveal}"
+        if ((reveal <= ${#tag})); then
+          tag_visible+="▸"
+        fi
+        printf "\r%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" " $tag_visible" "$c1" "$c0"
+        sleep 0.025
+      done
+      printf '\033[?25h'
+    else
+      # Non-interactive: print figlet text statically
+      for line in "${art_lines[@]}"; do
+        printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" " $line" "$c1" "$c0"
+      done
+      printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" " $tag" "$c1" "$c0"
+      printf "%s╚%s╝%s\n" "$c1" "$border" "$c0"
+      echo
+    fi
+  elif ((iw >= 54)); then
+    local art=(
+      "   ____"
+      "  / ___|_      ____ _ _ __ _ __ ___  _   _"
+      "  \\___ \\ \\ /\\ / / _\` | '__| '_ \` _ \\| | | |"
+      "   ___) \\ V  V / (_| | |  | | | | | | |_| |"
+      "  |____/ \\_/\\_/ \\__,_|_|  |_| |_| |_|\\__, |"
+    )
+    local tag="          SwarmyLauncher // /source     |___/"
+    for line in "${art[@]}"; do
+      printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" "$line" "$c1" "$c0"
+    done
+    printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" "$tag" "$c1" "$c0"
+    printf "%s╚%s╝%s\n" "$c1" "$border" "$c0"
+    echo
+  else
+    printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" " SwarmyLauncher" "$c1" "$c0"
+    printf "%s╚%s╝%s\n" "$c1" "$border" "$c0"
+    echo
+  fi
+}
+
+random_glyph() {
+  local glyphs=(
+    A B C D E F G H I J K L M N O P Q R S T U V W X Y Z
+    0 1 2 3 4 5 6 7 8 9 @ # '$' % '&' '*' + - = / '\\'
+    █ ▓ ▒ ░ Ω λ Ж Ø Ψ Σ あ 中 ★ ✦ ✧ ※
+  )
+  printf "%s" "${glyphs[$((RANDOM % ${#glyphs[@]}))]}"
+}
+
+random_matrix_color() {
+  local palette=("$c1" "$c2" "$c3" "$c4" "$c5")
+  printf "%s" "${palette[$((RANDOM % ${#palette[@]}))]}"
+}
+
+repeat_char() {
+  local count=$1 char=$2 out="" i
+  for ((i = 0; i < count; i++)); do
+    out+="$char"
+  done
+  printf "%s" "$out"
+}
+
+matrix_intro() {
+  local draw_rows frame rain_count row col
+  _update_term_size
+  draw_rows=$((_term_rows > 10 ? _term_rows - 8 : _term_rows - 2))
+  if ((draw_rows < 4)); then draw_rows=4; fi
+  rain_count=$((_term_cols / 3))
+  if ((rain_count < 10)); then rain_count=10; fi
+
+  printf '\033[?25l\033[2J\033[H'
+
+  for frame in {1..22}; do
+    for ((i = 0; i < rain_count; i++)); do
+      row=$((RANDOM % draw_rows + 1))
+      col=$((RANDOM % _term_cols + 1))
+      printf '\033[%d;%dH%s%s%s' "$row" "$col" "$(random_matrix_color)" "$(random_glyph)" "$c0"
+    done
+    sleep 0.045
+  done
+
+  for ((row = 1; row <= draw_rows; row++)); do
+    printf '\033[%d;1H\033[2K' "$row"
+    sleep 0.018
+  done
+}
+
+swarm_intro() {
+  local row col msg i pos
+  msg="WillEastbury's SWARM"
+  _update_term_size
+  row=$((_term_rows / 2))
+  if ((row < 2)); then row=2; fi
+  col=$(((_term_cols - ${#msg}) / 2 + 1))
+  if ((col < 1)); then col=1; fi
+
+  printf '\033[2J\033[H'
+  for ((i = 0; i < ${#msg}; i++)); do
+    pos=$((col + i))
+    if [[ "${msg:i:1}" != " " ]]; then
+      printf '\033[%d;%dH%s%s%s' "$row" "$pos" "$(random_matrix_color)" "$(random_glyph)" "$c0"
+      sleep 0.02
+    fi
+    printf '\033[%d;%dH%s%s%s' "$row" "$pos" "$c3" "${msg:i:1}" "$c0"
+    sleep 0.05
+  done
+  sleep 0.25
+  printf '\033[2J\033[H'
+}
+
+_banner_animated=false
+
+# Draw the banner statically (no animation), used for menu repaints
+draw_banner_static() {
+  local cols iw border line
+  _update_term_size
+  cols=$_term_cols
+  iw=$((cols - 2))
+  border="$(repeat_char "$iw" '═')"
+
+  printf "%s╔%s╗%s\n" "$c1" "$border" "$c0"
+
+  if ((iw >= 54)) && command -v figlet &>/dev/null; then
+    local art_lines=()
+    while IFS= read -r line; do
+      art_lines+=("$line")
+    done < <(figlet -f standard "Swarmy")
+    local tag="SwarmyLauncher // /source"
+    for line in "${art_lines[@]}"; do
+      printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" " $line" "$c1" "$c0"
+    done
+    printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" " $tag" "$c1" "$c0"
+  elif ((iw >= 54)); then
+    local art=(
+      "   ____"
+      "  / ___|_      ____ _ _ __ _ __ ___  _   _"
+      "  \\___ \\ \\ /\\ / / _\` | '__| '_ \` _ \\| | | |"
+      "   ___) \\ V  V / (_| | |  | | | | | | |_| |"
+      "  |____/ \\_/\\_/ \\__,_|_|  |_| |_| |_|\\__, |"
+    )
+    local tag="          SwarmyLauncher // /source     |___/"
+    for line in "${art[@]}"; do
+      printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" "$line" "$c1" "$c0"
+    done
+    printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" "$tag" "$c1" "$c0"
+  else
+    printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c3" " SwarmyLauncher" "$c1" "$c0"
+  fi
+
+  printf "%s╚%s╝%s\n" "$c1" "$border" "$c0"
+  echo
+}
+
+copilot_flyin() {
+  local cols rows mid_row frame
+  _update_term_size
+  cols=$_term_cols
+  rows=$_term_rows
+  mid_row=$((rows / 2))
+
+  local copilot_art=(
+    '    ██████╗ ██████╗ ██████╗ ██╗██╗      ██████╗ ████████╗'
+    '   ██╔════╝██╔═══██╗██╔══██╗██║██║     ██╔═══██╗╚══██╔══╝'
+    '   ██║     ██║   ██║██████╔╝██║██║     ██║   ██║   ██║   '
+    '   ██║     ██║   ██║██╔═══╝ ██║██║     ██║   ██║   ██║   '
+    '   ╚██████╗╚██████╔╝██║     ██║███████╗╚██████╔╝   ██║   '
+    '    ╚═════╝ ╚═════╝ ╚═╝     ╚═╝╚══════╝ ╚═════╝    ╚═╝   '
+  )
+
+  local art_width=${#copilot_art[0]}
+  local art_height=${#copilot_art[@]}
+  local start_row=$(( (rows - art_height) / 2 ))
+  if ((start_row < 1)); then start_row=1; fi
+
+  printf '\033[?25l\033[2J\033[H'
+
+  # Fly in from the right
+  local target_col=$(( (cols - art_width) / 2 ))
+  if ((target_col < 1)); then target_col=1; fi
+  local start_col=$((cols + 1))
+  local step=$(( (start_col - target_col) / 12 ))
+  if ((step < 1)); then step=1; fi
+
+  local cur_col=$start_col
+  while ((cur_col > target_col)); do
+    for ((i = 0; i < art_height; i++)); do
+      printf '\033[%d;1H\033[2K' "$((start_row + i))"
+      if ((cur_col <= cols)); then
+        printf '\033[%d;%dH%s%s%s' "$((start_row + i))" "$cur_col" "$c5" "${copilot_art[$i]}" "$c0"
+      fi
+    done
+    sleep 0.03
+    ((cur_col -= step)) || true
+  done
+
+  # Final position
+  for ((i = 0; i < art_height; i++)); do
+    printf '\033[%d;1H\033[2K' "$((start_row + i))"
+    printf '\033[%d;%dH%s%s%s' "$((start_row + i))" "$target_col" "$c2" "${copilot_art[$i]}" "$c0"
+  done
+
+  # Flash subtitle
+  local subtitle="Launching..."
+  local sub_col=$(( (cols - ${#subtitle}) / 2 + 1 ))
+  printf '\033[%d;%dH%s%s%s' "$((start_row + art_height + 1))" "$sub_col" "$c3" "$subtitle" "$c0"
+  sleep 0.5
+
+  printf '\033[?25h\033[2J\033[H'
+}
+
+if [[ -t 1 ]]; then
+  trap 'printf "\033[0m\033[?25h"' EXIT
+  matrix_intro
+  swarm_intro
+  printf '\033[?25h'
+fi
+
+# Play the animated banner once at startup
+draw_banner
+_banner_animated=true
+
+if [[ ! -d "$SOURCE_ROOT" ]]; then
+  echo "Error: $SOURCE_ROOT does not exist."
+  exit 1
+fi
+
+cd "$SOURCE_ROOT"
+
+mapfile -t dirs < <(find . -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort)
+
+clone_repo_option=96
+open_source_option=97
+create_new_option=98
+exit_option=99
+
+option_values=()
+option_labels=()
+
+if [[ ${#dirs[@]} -gt 0 ]]; then
+  for i in "${!dirs[@]}"; do
+    option_values+=("$((i + 1))")
+    option_labels+=("$((i + 1))) ${dirs[$i]}")
+  done
+fi
+
+option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option")
+option_labels+=(
+  "$clone_repo_option) Clone public repository and open in Copilot"
+  "$open_source_option) Open /source in Copilot"
+  "$create_new_option) Create new directory and open in Copilot"
+  "$exit_option) Exit"
+)
+
+draw_menu_box() {
+  local selected_idx=$1
+  local i line inner_width entry_width border cols
+  _update_term_size
+  cols=$_term_cols
+
+  inner_width=$((cols - 4))
+  if ((inner_width < 20)); then inner_width=20; fi
+  entry_width=$((inner_width - 2))
+  border="$(repeat_char "$((inner_width + 2))" '─')"
+
+  printf '\033[2J\033[H'
+  draw_banner_static
+  printf "%s┌%s┐%s\n" "$c1" "$border" "$c0"
+  line="$(printf "%-${inner_width}.${inner_width}s" " Use ↑/↓ to move, Enter to select, or type a number")"
+  printf "%s│ %s%s%s │%s\n" "$c1" "$c5" "$line" "$c1" "$c0"
+  printf "%s├%s┤%s\n" "$c1" "$border" "$c0"
+
+  for i in "${!option_labels[@]}"; do
+    line="$(printf "%-${entry_width}.${entry_width}s" "${option_labels[$i]}")"
+    if ((i == selected_idx)); then
+      printf "%s│ %s▶ %s%s │%s\n" "$c1" "$c3" "$line" "$c1" "$c0"
+    else
+      printf "%s│ %s  %s%s │%s\n" "$c1" "$cg" "$line" "$c1" "$c0"
+    fi
+  done
+  printf "%s└%s┘%s\n" "$c1" "$border" "$c0"
+}
+
+if [[ -t 0 && -t 1 ]]; then
+  selected_idx=0
+  while true; do
+    draw_menu_box "$selected_idx"
+    IFS= read -rsn1 key
+    if [[ "$key" == $'\x1b' ]]; then
+      key_suffix=""
+      IFS= read -rsn2 -t 0.1 key_suffix || true
+      key+="$key_suffix"
+    fi
+    case "$key" in
+      $'\x1b[A')
+        if ((selected_idx > 0)); then
+          ((selected_idx--))
+        fi
+        ;;
+      $'\x1b[B')
+        if ((selected_idx < ${#option_values[@]} - 1)); then
+          ((selected_idx++)) || true
+        fi
+        ;;
+      [0-9])
+        # Collect remaining digits with a short timeout
+        num="$key"
+        while IFS= read -rsn1 -t 0.5 digit && [[ "$digit" =~ [0-9] ]]; do
+          num+="$digit"
+        done
+        # Find matching option value
+        match_found=false
+        for i in "${!option_values[@]}"; do
+          if [[ "${option_values[$i]}" == "$num" ]]; then
+            selected_idx=$i
+            match_found=true
+            break
+          fi
+        done
+        if $match_found; then
+          choice="${option_values[$selected_idx]}"
+          break
+        fi
+        ;;
+      "" | $'\n' | $'\r')
+        choice="${option_values[$selected_idx]}"
+        break
+        ;;
+    esac
+  done
+else
+  echo "Select a directory:"
+  if [[ ${#dirs[@]} -eq 0 ]]; then
+    echo "(No existing directories found)"
+  else
+    for i in "${!dirs[@]}"; do
+      printf "%s%d) %s%s\n" "$cg" "$((i + 1))" "${dirs[$i]}" "$c0"
+    done
+  fi
+
+  printf "%s%d) %s%s\n" "$cg" "$clone_repo_option" "Clone public repository and open in Copilot" "$c0"
+  printf "%s%d) %s%s\n" "$cg" "$open_source_option" "Open /source in Copilot" "$c0"
+  printf "%s%d) %s%s\n" "$cg" "$create_new_option" "Create new directory and open in Copilot" "$c0"
+  printf "%s%d) %s%s\n" "$cg" "$exit_option" "Exit" "$c0"
+  read -rp "Enter number: " choice
+fi
+
+if [[ ! "$choice" =~ ^[0-9]+$ ]] || {
+  (( choice != clone_repo_option )) &&
+  (( choice != open_source_option )) &&
+  (( choice != create_new_option )) &&
+  (( choice != exit_option )) &&
+  (( choice < 1 || choice > ${#dirs[@]} ));
+}; then
+  echo "Invalid selection."
+  exit 1
+fi
+
+if (( choice == exit_option )); then
+  printf '\033[2J\033[H'
+  echo "Exiting."
+  exit 0
+fi
+
+if (( choice == open_source_option )); then
+  if [[ -t 1 ]]; then copilot_flyin; else printf '\033[2J\033[H'; fi
+  exec copilot --alt-screen
+fi
+
+if (( choice == clone_repo_option )); then
+  printf '\033[2J\033[H'
+  read -rp "Enter public repository path or URL: " repo_path
+  if [[ -z "$repo_path" ]]; then
+    echo "Repository path is required."
+    exit 1
+  fi
+
+  if [[ "$repo_path" != *"://"* && "$repo_path" != git@* ]]; then
+    repo_path="https://github.com/${repo_path}.git"
+  fi
+
+  repo_dir="$(basename "${repo_path%.git}")"
+  if [[ -z "$repo_dir" || "$repo_dir" == "." || "$repo_dir" == ".." ]]; then
+    echo "Could not determine target directory from repository path."
+    exit 1
+  fi
+
+  if [[ -e "$repo_dir" ]]; then
+    echo "Target already exists: $SOURCE_ROOT/$repo_dir"
+    exit 1
+  fi
+
+  git clone "$repo_path"
+  cd "$repo_dir"
+  if [[ -t 1 ]]; then copilot_flyin; fi
+  exec copilot --alt-screen
+fi
+
+if (( choice == create_new_option )); then
+  printf '\033[2J\033[H'
+  read -rp "Enter new directory name: " new_dir
+  if [[ -z "$new_dir" ]] || [[ "$new_dir" == *"/"* ]]; then
+    echo "Invalid directory name."
+    exit 1
+  fi
+  mkdir -p "$new_dir"
+  cd "$new_dir"
+  if [[ -t 1 ]]; then copilot_flyin; fi
+  exec copilot --alt-screen
+fi
+
+selected_dir="${dirs[$((choice - 1))]}"
+cd "$selected_dir"
+
+if [[ -t 1 ]]; then copilot_flyin; fi
+exec copilot --alt-screen
