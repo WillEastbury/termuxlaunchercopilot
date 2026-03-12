@@ -94,6 +94,8 @@ When the launcher starts you'll see an interactive menu listing all directories 
 | `97` | Open `/source` directly in Copilot |
 | `98` | Create a new directory in `/source` and open in Copilot |
 | `99` | Exit |
+| `100` | Run bash |
+| `101` | Update launcher to the latest version from this repo |
 
 **Navigation:** Use ↑/↓ arrow keys to highlight an option and press Enter, or just type the number.
 
@@ -103,6 +105,26 @@ When the launcher starts you'll see an interactive menu listing all directories 
 2. Press `96` to clone a repo (e.g. `myuser/myproject`)
 3. Copilot launches in the cloned project directory
 4. Next time you open Termux, the project appears as a numbered option
+
+## Upgrading
+
+To upgrade the launcher to the latest version, select option **101** from the menu. The launcher will:
+
+1. Download the latest `launcher` script from this repository
+2. Replace your local `~/launcher` with the new version
+3. Make it executable and relaunch automatically
+
+Alternatively, you can upgrade manually with this one-liner:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/WillEastbury/termuxlaunchercopilot/main/launcher -o ~/launcher && chmod +x ~/launcher && exec ~/launcher
+```
+
+Or using `wget`:
+
+```bash
+wget -qO ~/launcher https://raw.githubusercontent.com/WillEastbury/termuxlaunchercopilot/main/launcher && chmod +x ~/launcher && exec ~/launcher
+```
 
 ## Customisation
 
