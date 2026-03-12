@@ -7,6 +7,33 @@ SCRIPT_URL="https://raw.githubusercontent.com/WillEastbury/termuxlaunchercopilot
 
 SOURCE_ROOT="/source"
 
+# Detect if running directly inside Termux (not inside proot-distro).
+# This launcher requires a full Linux environment (proot-distro login ubuntu)
+# because it relies on a real root filesystem with /source as the workspace.
+# In plain Termux the root filesystem is sandboxed and /source cannot be created.
+if [[ -n "${TERMUX_VERSION:-}" ]] || [[ "${PREFIX:-}" == *com.termux* ]]; then
+  printf '%s\n' \
+    "" \
+    "  ┌─────────────────────────────────────────────────────────────────┐" \
+    "  │  ERROR: This launcher must be run inside proot-distro Ubuntu.   │" \
+    "  │                                                                 │" \
+    "  │  You are currently running directly inside Termux, which does   │" \
+    "  │  not support a real root filesystem. The launcher needs /source │" \
+    "  │  to exist as a top-level directory, which is only possible      │" \
+    "  │  inside a proot-distro Ubuntu environment.                      │" \
+    "  │                                                                 │" \
+    "  │  To set up proot-distro Ubuntu, run these commands in Termux:   │" \
+    "  │                                                                 │" \
+    "  │    pkg install -y proot-distro                                  │" \
+    "  │    proot-distro install ubuntu                                  │" \
+    "  │    proot-distro login ubuntu                                    │" \
+    "  │                                                                 │" \
+    "  │  Then re-run this launcher from inside the Ubuntu environment.  │" \
+    "  └─────────────────────────────────────────────────────────────────┘" \
+    ""
+  exit 1
+fi
+
 if [[ -t 1 ]]; then
   c1=$'\033[38;5;39m'   # blue
   c2=$'\033[38;5;46m'   # green

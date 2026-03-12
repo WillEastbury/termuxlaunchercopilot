@@ -1,8 +1,10 @@
 # Termux Launcher for GitHub Copilot CLI
 
-A colorful, interactive terminal launcher script designed for [Termux](https://termux.dev) on Android that provides a menu-driven interface to launch [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) in your project directories.
+A colorful, interactive terminal launcher script designed for use inside a **proot-distro Ubuntu** environment on [Termux](https://termux.dev) on Android. It provides a menu-driven interface to launch [GitHub Copilot CLI](https://docs.github.com/en/copilot/github-copilot-in-the-cli) in your project directories.
 
-![Bash](https://img.shields.io/badge/bash-4%2B-green) ![Platform](https://img.shields.io/badge/platform-Termux%20%2F%20Linux-blue) ![License](https://img.shields.io/badge/license-MIT-yellow)
+> ⚠️ **Important:** This launcher **must** be run inside a `proot-distro login ubuntu` session, **not** directly in Termux. Running it directly in Termux will not work because Termux's sandboxed filesystem does not allow creating top-level directories like `/source`. See [Setup: proot-distro Ubuntu](#setup-proot-distro-ubuntu) below.
+
+![Bash](https://img.shields.io/badge/bash-4%2B-green) ![Platform](https://img.shields.io/badge/platform-proot--distro%20Ubuntu%20%2F%20Linux-blue) ![License](https://img.shields.io/badge/license-MIT-yellow)
 
 ## Features
 
@@ -17,27 +19,49 @@ A colorful, interactive terminal launcher script designed for [Termux](https://t
   - Create a new project directory and open it in Copilot
   - Open the `/source` workspace directly in Copilot
 
-## Quick Install (one-liner)
+## Setup: proot-distro Ubuntu
 
-Run this in Termux to install everything in one go:
+All installation steps below must be run **inside a proot-distro Ubuntu session**. Follow this one-time setup first if you haven't already:
+
+### 1. Install proot-distro and Ubuntu (run in Termux)
 
 ```bash
-pkg install -y git figlet && mkdir -p /source && git clone https://github.com/WillEastbury/termuxlaunchercopilot.git /tmp/tl && cp /tmp/tl/launcher ~/launcher && chmod +x ~/launcher && echo '[ -z "$LAUNCHER_DONE" ] && export LAUNCHER_DONE=1 && exec ~/launcher' >> ~/.bashrc && rm -rf /tmp/tl && echo "Done! Run ~/launcher or open a new terminal session."
+pkg install -y proot-distro
+proot-distro install ubuntu
+```
+
+### 2. Enter the Ubuntu environment (run in Termux)
+
+```bash
+proot-distro login ubuntu
+```
+
+> All subsequent commands are run **inside this Ubuntu shell**, not in plain Termux.
+
+## Quick Install (one-liner)
+
+Run this **inside proot-distro login ubuntu** to install everything in one go:
+
+```bash
+apt-get install -y git figlet && mkdir -p /source && git clone https://github.com/WillEastbury/termuxlaunchercopilot.git /tmp/tl && cp /tmp/tl/launcher ~/launcher && chmod +x ~/launcher && echo '[ -z "$LAUNCHER_DONE" ] && export LAUNCHER_DONE=1 && exec ~/launcher' >> ~/.bashrc && rm -rf /tmp/tl && echo "Done! Run ~/launcher or open a new terminal session."
 ```
 
 ## Step-by-Step Installation
 
 ### Prerequisites
 
-- **Termux** (or any Linux terminal with Bash 4+)
-- **GitHub Copilot CLI** — must be installed and authenticated (`gh auth login` + `gh extension install github/gh-copilot`)
+- **Termux** on Android with **proot-distro** installed
+- A **proot-distro Ubuntu** environment (see [Setup: proot-distro Ubuntu](#setup-proot-distro-ubuntu) above)
+- **GitHub Copilot CLI** — must be installed and authenticated inside Ubuntu (`gh auth login` + `gh extension install github/gh-copilot`)
 - **git** — for cloning repos from the launcher
+
+All steps below are run **inside `proot-distro login ubuntu`**, not in plain Termux.
 
 ### 1. Install optional dependencies
 
 ```bash
 # figlet provides the fancy ASCII art banner (optional but recommended)
-pkg install -y figlet
+apt-get install -y figlet
 ```
 
 ### 2. Create the source directory
@@ -59,7 +83,7 @@ rm -rf /tmp/tl
 
 ### 4. Auto-start on terminal open (optional)
 
-To launch the menu automatically every time you open a Termux session, add it to your shell startup file:
+To launch the menu automatically every time you enter the Ubuntu proot-distro session, add it to your shell startup file:
 
 **For Bash (`~/.bashrc`):**
 
@@ -101,10 +125,11 @@ When the launcher starts you'll see an interactive menu listing all directories 
 
 ### Workflow example
 
-1. Open Termux — the launcher starts automatically
-2. Press `96` to clone a repo (e.g. `myuser/myproject`)
-3. Copilot launches in the cloned project directory
-4. Next time you open Termux, the project appears as a numbered option
+1. Open Termux and enter Ubuntu: `proot-distro login ubuntu`
+2. The launcher starts automatically (if auto-start is configured)
+3. Press `96` to clone a repo (e.g. `myuser/myproject`)
+4. Copilot launches in the cloned project directory
+5. Next time you enter the Ubuntu session, the project appears as a numbered option
 
 ## Upgrading
 
@@ -138,10 +163,11 @@ The launcher script is a single self-contained Bash file. Edit `~/launcher` to:
 
 | Problem | Fix |
 |---------|-----|
-| No ASCII art banner | Install figlet: `pkg install figlet` |
+| "Must be run inside proot-distro Ubuntu" error | Run `proot-distro login ubuntu` first, then re-run `~/launcher` |
+| No ASCII art banner | Install figlet: `apt-get install -y figlet` |
 | Arrows don't work | Make sure you're in an interactive terminal (not piped) |
 | Launcher loops on exit | Check the `LAUNCHER_DONE` guard is in your rc file |
-| `/source` not found | Run `mkdir -p /source` |
+| `/source` not found | Run `mkdir -p /source` inside the proot-distro Ubuntu session |
 
 ## License
 
