@@ -2,6 +2,9 @@
 
 set -euo pipefail
 
+VERSION="1.1.0"
+SCRIPT_URL="https://raw.githubusercontent.com/WillEastbury/termuxlaunchercopilot/main/launcher"
+
 SOURCE_ROOT="/source"
 
 if [[ -t 1 ]]; then
@@ -57,7 +60,7 @@ draw_banner() {
     while IFS= read -r line; do
       art_lines+=("$line")
     done < <(figlet -f standard "Swarmy")
-    local tag="SwarmyLauncher // /source"
+    local tag="SwarmyLauncher // /source  [v${VERSION}]"
 
     local total_lines=$(( ${#art_lines[@]} + 1 ))
 
@@ -115,7 +118,7 @@ draw_banner() {
       "   ___) \\ V  V / (_| | |  | | | | | | |_| |"
       "  |____/ \\_/\\_/ \\__,_|_|  |_| |_| |_|\\__, |"
     )
-    local tag="          SwarmyLauncher // /source     |___/"
+    local tag="          SwarmyLauncher // /source  [v${VERSION}]     |___/"
     for line in "${art[@]}"; do
       printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" "$line" "$c1" "$c0"
     done
@@ -216,7 +219,7 @@ draw_banner_static() {
     while IFS= read -r line; do
       art_lines+=("$line")
     done < <(figlet -f standard "Swarmy")
-    local tag="SwarmyLauncher // /source"
+    local tag="SwarmyLauncher // /source  [v${VERSION}]"
     for line in "${art_lines[@]}"; do
       printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" " $line" "$c1" "$c0"
     done
@@ -229,7 +232,7 @@ draw_banner_static() {
       "   ___) \\ V  V / (_| | |  | | | | | | |_| |"
       "  |____/ \\_/\\_/ \\__,_|_|  |_| |_| |_|\\__, |"
     )
-    local tag="          SwarmyLauncher // /source     |___/"
+    local tag="          SwarmyLauncher // /source  [v${VERSION}]     |___/"
     for line in "${art[@]}"; do
       printf "%s║%s%-${iw}.${iw}s%s║%s\n" "$c1" "$c2" "$line" "$c1" "$c0"
     done
@@ -324,6 +327,7 @@ open_source_option=97
 create_new_option=98
 exit_option=99
 bash_option=100
+update_option=101
 
 option_values=()
 option_labels=()
@@ -335,13 +339,14 @@ if [[ ${#dirs[@]} -gt 0 ]]; then
   done
 fi
 
-option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option" "$bash_option")
+option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option" "$bash_option" "$update_option")
 option_labels+=(
   "$clone_repo_option) Clone public repository and open in Copilot"
   "$open_source_option) Open /source in Copilot"
   "$create_new_option) Create new directory and open in Copilot"
   "$exit_option) Exit"
   "$bash_option) Run bash"
+  "$update_option) Update launcher to latest version (current: v${VERSION})"
 )
 
 draw_menu_box() {
@@ -435,6 +440,7 @@ else
   printf "%s%d) %s%s\n" "$cg" "$create_new_option" "Create new directory and open in Copilot" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$exit_option" "Exit" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$bash_option" "Run bash" "$c0"
+  printf "%s%d) %s%s\n" "$cg" "$update_option" "Update launcher to latest version (current: v${VERSION})" "$c0"
   read -rp "Enter number: " choice
 fi
 
@@ -444,6 +450,7 @@ if [[ ! "$choice" =~ ^[0-9]+$ ]] || {
   (( choice != create_new_option )) &&
   (( choice != exit_option )) &&
   (( choice != bash_option )) &&
+  (( choice != update_option )) &&
   (( choice < 1 || choice > ${#dirs[@]} ));
 }; then
   echo "Invalid selection."
@@ -506,6 +513,23 @@ fi
 if (( choice == bash_option )); then
   printf '\033[2J\033[H'
   exec bash
+fi
+
+if (( choice == update_option )); then
+  printf '\033[2J\033[H'
+  launcher_script="${BASH_SOURCE[0]}"
+  echo "Updating launcher from ${SCRIPT_URL} ..."
+  if command -v curl &>/dev/null; then
+    curl -fsSL "$SCRIPT_URL" -o "$launcher_script" || { echo "Error: download failed." >&2; exit 1; }
+  elif command -v wget &>/dev/null; then
+    wget -qO "$launcher_script" "$SCRIPT_URL" || { echo "Error: download failed." >&2; exit 1; }
+  else
+    echo "Error: neither curl nor wget is available. Cannot update." >&2
+    exit 1
+  fi
+  chmod +x "$launcher_script"
+  echo "Update complete. Relaunching..."
+  exec "$launcher_script"
 fi
 
 selected_dir="${dirs[$((choice - 1))]}"
