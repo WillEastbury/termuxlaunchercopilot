@@ -323,6 +323,7 @@ clone_repo_option=96
 open_source_option=97
 create_new_option=98
 exit_option=99
+bash_option=100
 
 option_values=()
 option_labels=()
@@ -334,12 +335,13 @@ if [[ ${#dirs[@]} -gt 0 ]]; then
   done
 fi
 
-option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option")
+option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option" "$bash_option")
 option_labels+=(
   "$clone_repo_option) Clone public repository and open in Copilot"
   "$open_source_option) Open /source in Copilot"
   "$create_new_option) Create new directory and open in Copilot"
   "$exit_option) Exit"
+  "$bash_option) Run bash"
 )
 
 draw_menu_box() {
@@ -432,6 +434,7 @@ else
   printf "%s%d) %s%s\n" "$cg" "$open_source_option" "Open /source in Copilot" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$create_new_option" "Create new directory and open in Copilot" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$exit_option" "Exit" "$c0"
+  printf "%s%d) %s%s\n" "$cg" "$bash_option" "Run bash" "$c0"
   read -rp "Enter number: " choice
 fi
 
@@ -440,6 +443,7 @@ if [[ ! "$choice" =~ ^[0-9]+$ ]] || {
   (( choice != open_source_option )) &&
   (( choice != create_new_option )) &&
   (( choice != exit_option )) &&
+  (( choice != bash_option )) &&
   (( choice < 1 || choice > ${#dirs[@]} ));
 }; then
   echo "Invalid selection."
@@ -497,6 +501,11 @@ if (( choice == create_new_option )); then
   cd "$new_dir"
   if [[ -t 1 ]]; then copilot_flyin; fi
   exec copilot --alt-screen
+fi
+
+if (( choice == bash_option )); then
+  printf '\033[2J\033[H'
+  exec bash
 fi
 
 selected_dir="${dirs[$((choice - 1))]}"
