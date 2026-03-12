@@ -512,6 +512,7 @@ fi
 
 if (( choice == bash_option )); then
   printf '\033[2J\033[H'
+  export LAUNCHER_DONE=1
   exec bash
 fi
 
