@@ -354,7 +354,8 @@ open_source_option=97
 create_new_option=98
 exit_option=99
 bash_option=100
-update_option=101
+ssh_option=101
+update_option=102
 
 option_values=()
 option_labels=()
@@ -366,13 +367,14 @@ if [[ ${#dirs[@]} -gt 0 ]]; then
   done
 fi
 
-option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option" "$bash_option" "$update_option")
+option_values+=("$clone_repo_option" "$open_source_option" "$create_new_option" "$exit_option" "$bash_option" "$ssh_option" "$update_option")
 option_labels+=(
   "$clone_repo_option) Clone public repository and open in Copilot"
   "$open_source_option) Open /source in Copilot"
   "$create_new_option) Create new directory and open in Copilot"
   "$exit_option) Exit"
   "$bash_option) Run bash"
+  "$ssh_option) Start SSH server (show connection info)"
   "$update_option) Update launcher to latest version (current: v${VERSION})"
 )
 
@@ -467,6 +469,7 @@ else
   printf "%s%d) %s%s\n" "$cg" "$create_new_option" "Create new directory and open in Copilot" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$exit_option" "Exit" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$bash_option" "Run bash" "$c0"
+  printf "%s%d) %s%s\n" "$cg" "$ssh_option" "Start SSH server (show connection info)" "$c0"
   printf "%s%d) %s%s\n" "$cg" "$update_option" "Update launcher to latest version (current: v${VERSION})" "$c0"
   read -rp "Enter number: " choice
 fi
@@ -477,6 +480,7 @@ if [[ ! "$choice" =~ ^[0-9]+$ ]] || {
   (( choice != create_new_option )) &&
   (( choice != exit_option )) &&
   (( choice != bash_option )) &&
+  (( choice != ssh_option )) &&
   (( choice != update_option )) &&
   (( choice < 1 || choice > ${#dirs[@]} ));
 }; then
@@ -541,6 +545,75 @@ if (( choice == bash_option )); then
   printf '\033[2J\033[H'
   export LAUNCHER_DONE=1
   exec bash
+fi
+
+if (( choice == ssh_option )); then
+  printf '\033[2J\033[H'
+  echo "${c5}Starting SSH server...${c0}"
+
+  # Determine the SSH daemon binary (Termux uses sshd from openssh)
+  if ! command -v sshd &>/dev/null; then
+    echo "${c4}Error: sshd not found. Install openssh (e.g. pkg install openssh) and try again.${c0}" >&2
+    exit 1
+  fi
+
+  # Start sshd (Termux default port is 8022; standard sshd uses 22)
+  sshd_err="$(sshd 2>&1)" || {
+    # Ignore "already running" type errors; surface real failures
+    if ! echo "$sshd_err" | grep -qi "already\|bind\|running" 2>/dev/null; then
+      echo "${c4}Warning: sshd reported: ${sshd_err}${c0}" >&2
+    fi
+  }
+
+  # Determine listening port from sshd_config (fall back to 8022 for Termux, then 22)
+  ssh_port=22
+  for cfg in "$PREFIX/etc/ssh/sshd_config" /etc/ssh/sshd_config; do
+    if [[ -f "$cfg" ]]; then
+      port_line="$(grep -m1 -i '^[[:space:]]*Port[[:space:]]' "$cfg" 2>/dev/null || true)"
+      if [[ -n "$port_line" ]]; then
+        ssh_port="${port_line##*[[:space:]]}"
+      fi
+      break
+    fi
+  done
+  # If running under Termux and port is still 22, default to 8022
+  if [[ -n "${PREFIX:-}" && "$ssh_port" == "22" ]]; then
+    ssh_port=8022
+  fi
+
+  # Collect IP addresses (prefer non-loopback); try ip(8), then hostname -I, then ifconfig
+  ssh_ips=()
+  while IFS= read -r ip; do
+    ssh_ips+=("$ip")
+  done < <(
+    if command -v ip &>/dev/null; then
+      ip -4 addr show 2>/dev/null | awk '/inet / {print $2}' | cut -d/ -f1 | grep -v '^127\.'
+    elif hostname -I &>/dev/null 2>&1; then
+      hostname -I 2>/dev/null | tr ' ' '\n' | grep -v '^127\.' | grep -v '^$'
+    elif command -v ifconfig &>/dev/null; then
+      ifconfig 2>/dev/null | awk '/inet / {print $2}' | sed 's/addr://' | grep -v '^127\.'
+    fi || true
+  )
+
+  if [[ ${#ssh_ips[@]} -eq 0 ]]; then
+    ssh_ips=("(could not detect IP)")
+  fi
+
+  ssh_user="$(whoami 2>/dev/null || id -un 2>/dev/null || echo "unknown")"
+
+  echo ""
+  echo "${c2}SSH server started.${c0}"
+  echo ""
+  echo "${c3}Connect with:${c0}"
+  for ip in "${ssh_ips[@]}"; do
+    echo "  ${c5}ssh -p ${ssh_port} ${ssh_user}@${ip}${c0}"
+  done
+  echo ""
+  echo "${c3}Username : ${c5}${ssh_user}${c0}"
+  echo "${c3}Port     : ${c5}${ssh_port}${c0}"
+  echo ""
+  read -rp "Press Enter to return to the launcher..." _dummy
+  exec "$BASH_SOURCE"
 fi
 
 if (( choice == update_option )); then
